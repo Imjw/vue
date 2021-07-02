@@ -17,6 +17,7 @@ export const transitionProps = {
   css: Boolean,
   mode: String,
   type: String,
+  noKeyPrefix: Boolean,
   enterClass: String,
   leaveClass: String,
   enterToClass: String,
@@ -142,7 +143,7 @@ export default {
     // ensure a key that is unique to the vnode type and to this transition
     // component instance. This key will be used to remove pending leaving nodes
     // during entering.
-    const id: string = `__transition-${this._uid}-`
+    const id: string = this.$options.propsData.noKeyPrefix ? '' : `__transition-${this._uid}-`
     child.key = child.key == null
       ? child.isComment
         ? id + 'comment'
