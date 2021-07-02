@@ -1,5 +1,5 @@
 /*!
- * Vue.js v2.6.14
+ * Vue.js v2.6.141
  * (c) 2014-2021 Evan You
  * Released under the MIT License.
  */
@@ -5263,16 +5263,20 @@
     return opts && (opts.Ctor.options.name || opts.tag)
   }
 
-  function matches (pattern, name) {
-    if (Array.isArray(pattern)) {
-      return pattern.indexOf(name) > -1
-    } else if (typeof pattern === 'string') {
-      return pattern.split(',').indexOf(name) > -1
-    } else if (isRegExp(pattern)) {
-      return pattern.test(name)
+  function matches (pattern, key, name) {
+    function matchesValue(value) {
+      if (Array.isArray(pattern)) {
+        return pattern.indexOf(value) > -1
+      } else if (typeof pattern === 'string') {
+        return pattern.split(',').indexOf(value) > -1
+      } else if (isRegExp(pattern)) {
+        return pattern.test(value)
+      }
+      /* istanbul ignore next */
+      return false
     }
-    /* istanbul ignore next */
-    return false
+
+    return (key && matchesValue(key)) || matchesValue(name);
   }
 
   function pruneCache (keepAliveInstance, filter) {
@@ -5283,7 +5287,7 @@
       var entry = cache[key];
       if (entry) {
         var name = entry.name;
-        if (name && !filter(name)) {
+        if (name && !filter(key, name)) {
           pruneCacheEntry(cache, key, keys, _vnode);
         }
       }
@@ -5297,7 +5301,7 @@
     current
   ) {
     var entry = cache[key];
-    if (entry && (!current || entry.tag !== current.tag)) {
+    if (entry && (!current || entry.tag !== current.tag || entry.componentInstance.$vnode.key !== current.key)) {
       entry.componentInstance.$destroy();
     }
     cache[key] = null;
@@ -5358,10 +5362,10 @@
 
       this.cacheVNode();
       this.$watch('include', function (val) {
-        pruneCache(this$1, function (name) { return matches(val, name); });
+        pruneCache(this$1, function (key, name) { return matches(val, key, name); });
       });
       this.$watch('exclude', function (val) {
-        pruneCache(this$1, function (name) { return !matches(val, name); });
+        pruneCache(this$1, function (key, name) { return !matches(val, key, name); });
       });
     },
 
@@ -5376,14 +5380,19 @@
       if (componentOptions) {
         // check pattern
         var name = getComponentName(componentOptions);
+        var key = vnode.key == null
+          // same constructor may get registered as different local components
+          // so cid alone is not enough (#3269)
+          ? componentOptions.Ctor.cid + (componentOptions.tag ? ("::" + (componentOptions.tag)) : '')
+          : vnode.key;
         var ref = this;
         var include = ref.include;
         var exclude = ref.exclude;
         if (
           // not included
-          (include && (!name || !matches(include, name))) ||
+          (include && (!name || !matches(include, key, name))) ||
           // excluded
-          (exclude && name && matches(exclude, name))
+          (exclude && name && matches(exclude, key, name))
         ) {
           return vnode
         }
@@ -5391,11 +5400,6 @@
         var ref$1 = this;
         var cache = ref$1.cache;
         var keys = ref$1.keys;
-        var key = vnode.key == null
-          // same constructor may get registered as different local components
-          // so cid alone is not enough (#3269)
-          ? componentOptions.Ctor.cid + (componentOptions.tag ? ("::" + (componentOptions.tag)) : '')
-          : vnode.key;
         if (cache[key]) {
           vnode.componentInstance = cache[key].componentInstance;
           // make current key freshest
@@ -5487,7 +5491,7 @@
     value: FunctionalRenderContext
   });
 
-  Vue.version = '2.6.14';
+  Vue.version = '2.6.141';
 
   /*  */
 
@@ -8708,6 +8712,7 @@
     css: Boolean,
     mode: String,
     type: String,
+    noKeyPrefix: Boolean,
     enterClass: String,
     leaveClass: String,
     enterToClass: String,
@@ -8834,7 +8839,7 @@
       // ensure a key that is unique to the vnode type and to this transition
       // component instance. This key will be used to remove pending leaving nodes
       // during entering.
-      var id = "__transition-" + (this._uid) + "-";
+      var id = this.$options.propsData.noKeyPrefix ? '' : ("__transition-" + (this._uid) + "-");
       child.key = child.key == null
         ? child.isComment
           ? id + 'comment'
